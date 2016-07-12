@@ -225,6 +225,64 @@ describe('watch', function() {
         });
     });
 
+    it('should not debounce events', function(done) {
+        var calledCount = {
+            changed: 0,
+            added: 0,
+            deleted: 0
+        };
+        var helper = function(event) {
+            calledCount[event]++;
+        };
+
+        var tempFile = path.join(tempDir, 'test.txt');
+        var glob = path.join(tempDir, '*.txt');
+
+        watchers = watch(glob, {
+            verbose: false,
+            debounce: 0,
+            onAdd: function(filename, dir) {
+                var full = path.join(dir, filename);
+                full.should.equal(tempFile);
+                helper('added');
+            },
+            onChange: function(filename, dir) {
+                var full = path.join(dir, filename);
+                full.should.equal(tempFile);
+                helper('changed');
+            },
+            onDelete: function(filename, dir) {
+                var full = path.join(dir, filename);
+                full.should.equal(tempFile);
+                helper('deleted');
+            }
+        });
+
+        this.timeout(0);
+
+        allReady(watchers, function() {
+            var timeout = 1000;
+
+            fs.writeFileSync(tempFile, 'created');
+            setTimeout(function() {
+                fs.writeFileSync(tempFile, 'changed 1');
+            }, 100);
+            setTimeout(function() {
+                fs.writeFileSync(tempFile, 'changed 2');
+            }, 200);
+
+            setTimeout(function() {
+                calledCount.changed.should.be.at.least(2);
+                calledCount.added.should.be.at.least(1);
+                fs.unlinkSync(tempFile);
+                setTimeout(function() {
+                    calledCount.deleted.should.be.at.least(1);
+                    done();
+                }, 1000);
+            }, timeout);
+        });
+    });
+
     it('should support multiple globs', function(done) {
         var tempFile1 = path.join(tempDir, 'test.txt');
         var tempFile2 = path.join(tempDir, 'test.tst');
